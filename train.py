@@ -10,17 +10,21 @@ import numpy as np
 
 from models import GCN
 from sampler import Sampler_FastGCN 
-from utils import prepare_pubmed, get_batches, accuracy, sparse_mx_to_torch_sparse_tensor
+from utils import load_data, get_batches, accuracy, sparse_mx_to_torch_sparse_tensor
 
 def get_args():
     # Training settings
     parser = argparse.ArgumentParser()
+    parser.add_argument('--dataset', type=str, default='cora',
+                        help='dataset name.')   
+    parser.add_argument('--test_gap', type=int, default=1,
+                        help='the train epochs between two test')                       
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='Disables CUDA training.')
     parser.add_argument('--fastmode', action='store_true', default=False,
                         help='Validate during training pass.')
     parser.add_argument('--seed', type=int, default=123, help='Random seed.')
-    parser.add_argument('--epochs', type=int, default=200,
+    parser.add_argument('--epochs', type=int, default=100,
                         help='Number of epochs to train.')
     parser.add_argument('--lr', type=float, default=0.01,
                         help='Initial learning rate.')
@@ -72,9 +76,10 @@ def test(model, test_adj, test_feats, test_labels, batch_size, epoch):
     return loss_test.item(), acc_test.item(), time.time() - t
 
 if __name__ == '__main__':
-    #load data and set superpara     
-    adj, features, adj_train, train_features, y_train, y_test, test_index = prepare_pubmed("cora", 32)
+    #set superpara and load data     
     args = get_args()
+    adj, features, adj_train, train_features, y_train, y_test, test_index = load_data(args.dataset)
+    
     layer_sizes = [128, 128, args.batchsize]
     input_dim = features.shape[1]
     train_nums = adj_train.shape[0] 
@@ -98,13 +103,12 @@ if __name__ == '__main__':
     optimizer = optim.Adam(model.parameters(),
                         lr=args.lr, weight_decay=args.weight_decay)
 
-    test_gap = 1 
+    test_gap =  args.test_gap 
     test_adj = [adj, adj[test_index,:]]
     test_feats = [features, features[test_index]]
     test_labels = y_test   
 
     for epochs in range(0, args.epochs // test_gap):
-        # print(f"epchs:{epochs * test_gap}~{(epochs + 1) * test_gap - 1}")
         train_loss, train_acc, train_time = train(
             model, sampler, np.arange(train_nums), y_train, args.batchsize, test_gap)
         test_loss, test_acc, test_time = test(

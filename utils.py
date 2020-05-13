@@ -7,7 +7,7 @@ import numpy as np
 import networkx as nx
 import scipy.sparse as sp
 
-def load_data(dataset_str):
+def _load_data(dataset_str):
     """Load data."""
 
     def parse_index_file(filename):
@@ -96,7 +96,7 @@ def nontuple_preprocess_adj(adj):
     # adj_normalized = sp.eye(adj.shape[0]) + normalize_adj(adj)
     return adj_normalized.tocsr()
 
-def prepare_pubmed(dataset, max_degree):
+def load_data(dataset):
     """
     Returns:
         norm_adj: scipy.sparse.csr.csr_matrix, shape=(N, N)
@@ -107,7 +107,7 @@ def prepare_pubmed(dataset, max_degree):
         test_index: numpy.ndarray, shape=(N_test,)
     """ 
     # train_mask, val_mask, test_mask: np.ndarray, [True/False] * node_number
-    adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask = load_data(dataset)
+    adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask = _load_data(dataset)
     # pdb.set_trace()
     train_index = np.where(train_mask)[0]
     adj_train = adj[train_index, :][:, train_index]
