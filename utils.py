@@ -7,6 +7,7 @@ import numpy as np
 import networkx as nx
 import scipy.sparse as sp
 
+
 def _load_data(dataset_str):
     """Load data."""
 
@@ -33,13 +34,15 @@ def _load_data(dataset_str):
                 objects.append(pkl.load(f))
 
     x, y, tx, ty, allx, ally, graph = tuple(objects)
-    test_idx_reorder = parse_index_file("data/ind.{}.test.index".format(dataset_str))
+    test_idx_reorder = parse_index_file(
+        "data/ind.{}.test.index".format(dataset_str))
     test_idx_range = np.sort(test_idx_reorder)
 
     if dataset_str == 'citeseer':
         # Fix citeseer dataset (there are some isolated nodes in the graph)
         # Find isolated nodes, add them as zero-vecs into the right position
-        test_idx_range_full = range(min(test_idx_reorder), max(test_idx_reorder)+1)
+        test_idx_range_full = range(
+            min(test_idx_reorder), max(test_idx_reorder)+1)
         tx_extended = sp.lil_matrix((len(test_idx_range_full), x.shape[1]))
         tx_extended[test_idx_range-min(test_idx_range), :] = tx
         tx = tx_extended
@@ -73,14 +76,17 @@ def _load_data(dataset_str):
 
     return adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask
 
+
 def nontuple_preprocess_features(features):
     """Row-normalize feature matrix and convert to tuple representation"""
     rowsum = np.array(features.sum(1))
-    r_inv = np.power(rowsum, -1).flatten()
+    ep = 1e-10
+    r_inv = np.power(rowsum + ep, -1).flatten()
     r_inv[np.isinf(r_inv)] = 0.
     r_mat_inv = sp.diags(r_inv)
     features = r_mat_inv.dot(features)
     return features
+
 
 def normalize_adj(adj):
     """Symmetrically normalize adjacency matrix."""
@@ -91,10 +97,12 @@ def normalize_adj(adj):
     d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
     return adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt).tocoo()
 
+
 def nontuple_preprocess_adj(adj):
     adj_normalized = normalize_adj(sp.eye(adj.shape[0]) + adj)
     # adj_normalized = sp.eye(adj.shape[0]) + normalize_adj(adj)
     return adj_normalized.tocsr()
+
 
 def load_data(dataset):
     """
@@ -105,9 +113,10 @@ def load_data(dataset):
         train_features: numpy.matrix, shape=(N_train + 1, Dim)
         y_train, y_test: numpy.ndarray, shape=(N_train/N_test, Class_N)
         test_index: numpy.ndarray, shape=(N_test,)
-    """ 
+    """
     # train_mask, val_mask, test_mask: np.ndarray, [True/False] * node_number
-    adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask = _load_data(dataset)
+    adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask = _load_data(
+        dataset)
     # pdb.set_trace()
     train_index = np.where(train_mask)[0]
     adj_train = adj[train_index, :][:, train_index]
@@ -118,7 +127,6 @@ def load_data(dataset):
     y_test = y_test[test_index]
 
     num_train = adj_train.shape[0]
-    input_dim = features.shape[1]
 
     features = nontuple_preprocess_features(features).todense()
     train_features = features[train_index]
@@ -130,13 +138,17 @@ def load_data(dataset):
         norm_adj = 1*sp.diags(np.ones(norm_adj.shape[0])) + norm_adj
         norm_adj_train = 1*sp.diags(np.ones(num_train)) + norm_adj_train
 
-    # adj_train, adj_val_train = norm_adj_train, norm_adj_train
-    # adj_train, adj_val_train = compute_adjlist(norm_adj_train, max_degree)
-    # train_features = np.concatenate((train_features, np.zeros((1, input_dim))))
-
     # change type to tensor
-    # return norm_adj, adj_train, adj_val_train, features, train_features, y_train, y_test, test_index
-    return norm_adj, features, norm_adj_train, train_features, y_train, y_test, test_index 
+    # norm_adj = sparse_mx_to_torch_sparse_tensor(norm_adj)
+    # features = torch.FloatTensor(features)
+    # norm_adj_train = sparse_mx_to_torch_sparse_tensor(norm_adj_train)
+    # train_features = torch.FloatTensor(train_features)
+    # y_train = torch.LongTensor(y_train)
+    # y_test = torch.LongTensor(y_test)
+    # test_index = torch.LongTensor(test_index)
+
+    return norm_adj, features, norm_adj_train, train_features, y_train, y_test, test_index
+
 
 def get_batches(train_ind, train_labels, batch_size=64, shuffle=True):
     """
@@ -148,17 +160,19 @@ def get_batches(train_ind, train_labels, batch_size=64, shuffle=True):
         np.random.shuffle(train_ind)
     i = 0
     while i < nums:
-        cur_ind =  train_ind[i:i + batch_size] 
+        cur_ind = train_ind[i:i + batch_size]
         cur_labels = train_labels[cur_ind]
         yield cur_ind, cur_labels
         i += batch_size
+
 
 def accuracy(output, labels):
     preds = output.max(1)[1].type_as(labels)
     correct = preds.eq(labels).double()
     correct = correct.sum()
     return correct / len(labels)
-    
+
+
 def sparse_mx_to_torch_sparse_tensor(sparse_mx):
     """Convert a scipy sparse matrix to a torch sparse tensor."""
     sparse_mx = sparse_mx.tocoo().astype(np.float32)
@@ -166,18 +180,10 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
         np.vstack((sparse_mx.row, sparse_mx.col)).astype(np.int64))
     values = torch.from_numpy(sparse_mx.data)
     shape = torch.Size(sparse_mx.shape)
-    return torch.sparse.FloatTensor(indices, values, shape)   
+    return torch.sparse.FloatTensor(indices, values, shape)
+
 
 if __name__ == '__main__':
+    adj, features, adj_train, train_features, y_train, y_test, test_index = load_data(
+        'cora')
     pdb.set_trace()
-    datas = prepare_pubmed("cora", 32)
-    adj = datas[0].tocoo()
-    row, col = adj.row, adj.col
-    G = {}
-    for head, tail in zip(row, col):
-        if head not in G:
-            G[head] = [tail]
-        else:
-            G[head].append(tail)
-    pdb.set_trace()
-    pkl.dump(G, open("cora_adjlist.pkl", 'wb'))
