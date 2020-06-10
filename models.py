@@ -5,12 +5,13 @@ from layers import GraphConvolution
 
 
 class GCN(nn.Module):
-    def __init__(self, nfeat, nhid, nclass, dropout):
+    def __init__(self, nfeat, nhid, nclass, dropout, sampler):
         super().__init__()
 
         self.gc1 = GraphConvolution(nfeat, nhid)
         self.gc2 = GraphConvolution(nhid, nclass)
         self.dropout = dropout
+        self.sampler = sampler
 
     def forward(self, x, adj):
         # pdb.set_trace()
@@ -19,3 +20,6 @@ class GCN(nn.Module):
         outputs1 = F.dropout(outputs1, self.dropout, training=self.training)
         outputs2 = self.gc2(outputs1, adj[1])
         return F.log_softmax(outputs2, dim=1)
+
+    def sampling(self, *args, **kwargs):
+        return self.sampler.sampling(*args, **kwargs)

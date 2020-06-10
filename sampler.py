@@ -14,7 +14,8 @@ class Sampler:
     def __init__(self, features, adj, **kwargs):
         allowed_kwargs = {'num_layers', 'input_dim', 'layer_sizes', 'scope'}
         for kwarg in kwargs.keys():
-            assert kwarg in allowed_kwargs, 'Invalid keyword argument: ' + kwarg
+            assert kwarg in allowed_kwargs, \
+                'Invalid keyword argument: ' + kwarg
 
         self.input_dim = kwargs.get('input_dim', 1)
         self.layer_sizes = kwargs.get('layer_sizes', [1])
@@ -27,8 +28,8 @@ class Sampler:
 
         self.train_nodes_number = self.adj.shape[0]
 
-    def _one_layer_sampling(self, v_indices, output_size, layer_num):
-        raise NotImplementedError("one_layer_sampling is not implimented")
+    def sampling(self, v_indices):
+        raise NotImplementedError("sampling is not implimented")
 
     def _change_sparse_to_tensor(self, adjs):
         new_adjs = []
@@ -75,8 +76,8 @@ class Sampler_FastGCN(Sampler):
         support = self.adj[v_indices, :]
         neis = np.nonzero(np.sum(support, axis=0))[1]
         p1 = self.probs[neis]
-        sampled = np.random.choice(
-            np.array(np.arange(np.size(neis))), output_size, True, p1 / np.sum(p1))
+        sampled = np.random.choice(np.array(np.arange(np.size(neis))),
+                                   output_size, True, p1 / np.sum(p1))
 
         u_sampled = neis[sampled]
         support = support[:, u_sampled]
@@ -86,11 +87,12 @@ class Sampler_FastGCN(Sampler):
         return u_sampled, support
 
 
-class Sampler_ASGCN(Sampler):
+class Sampler_ASGCN(Sampler, torch.nn.Module):
     def __init__(self, pre_probs, features, adj, **kwargs):
         # features = torch.FloatTensor(features)
         # adj = sparse_mx_to_torch_sparse_tensor(adj)
         super().__init__(features, adj, **kwargs)
+        torch.nn.Module.__init__(self)
         # col_norm = sparse_norm(adj, axis=0)
         # self.probs = col_norm / np.sum(col_norm)
         self.feats_dim = features.shape[1]
@@ -120,21 +122,24 @@ class Sampler_ASGCN(Sampler):
         cur_out_nodes = v
         # top-down sampling from top-2 layer to the input layer
         for i in range(len(all_x_u) - 2, -1, -1):
-            u_sampled, support, var_need = self.one_layer_sampling(cur_out_nodes,
-                                                              output_size=self.layer_sizes[i], layer_num=0)
+            u_sampled, support, var_need = \
+                self._one_layer_sampling(cur_out_nodes,
+                                         output_size=self.layer_sizes[i],
+                                         layer_num=0)
+
             all_x_u[i] = self.features[u_sampled]
             all_support[i] = support
-            all_p_u[i] = var_need 
+            all_p_u[i] = var_need
 
             cur_out_nodes = u_sampled
 
         all_x_u = self._change_dense_to_tensor(all_x_u)
         # all_support = self._change_sparse_to_tensor(all_support)
 
-        loss = self._calc_varance(all_p_u)
+        loss = self._calc_variance(all_p_u)
         return all_x_u, all_support, loss
 
-    def _calc_varance(self, var_need):
+    def _calc_variance(self, var_need):
         # NOTE: it's useless in this implementation for the three datasets
         # only calc the variane of the last layer
         u_nodes, p_u = var_need[-1][0], var_need[-1][1]
@@ -145,7 +150,7 @@ class Sampler_ASGCN(Sampler):
         var = torch.mean(torch.sum(torch.mul(feature, feature) * p_u, 0))
         return var
 
-    def one_layer_sampling(self, v_indices, output_size, layer_num):
+    def _one_layer_sampling(self, v_indices, output_size, layer_num):
         support = self.adj[v_indices, :]
         neis = np.nonzero(np.sum(support, axis=0))[1]
         support = support[:, neis]
@@ -155,13 +160,16 @@ class Sampler_ASGCN(Sampler):
         h_v = torch.FloatTensor(self.features[v_indices])
         h_u = torch.FloatTensor(self.features[neis])
 
-        attention = (1.0 / np.size(neis)) * torch.relu(torch.mm(h_v, self.w1) +
-                                                       torch.mm(h_u, self.w2).reshape(1, -1) + 1)
+        attention = torch.mm(h_v, self.w1) + \
+            torch.mm(h_u, self.w2).reshape(1, -1) + 1
+        attention = (1.0 / np.size(neis)) * torch.relu(attention)
 
         p1 = torch.sum(support * attention, 0)
         numpy_p1 = p1.data.numpy()
-        sampled = np.random.choice(
-            np.array(np.arange(np.size(neis))), output_size, True, numpy_p1 / np.sum(numpy_p1))
+        sampled = np.random.choice(np.array(np.arange(np.size(neis))),
+                                   size=output_size,
+                                   replace=True,
+                                   p=numpy_p1 / np.sum(numpy_p1))
 
         u_sampled = neis[sampled]
         support = support[:, sampled]
@@ -172,19 +180,17 @@ class Sampler_ASGCN(Sampler):
 
         return u_sampled, support, (neis, p1 / torch.sum(p1))
 
-    def sample_loss(self):
-        return 0
-
 
 if __name__ == '__main__':
-    adj, features, adj_train, train_features, y_train, y_test, test_index = load_data(
-        "cora")
+    adj, features, adj_train, train_features, y_train, y_test, test_index = \
+        load_data("cora")
     batchsize = 256
     layer_sizes = [128, 128, batchsize]
     input_dim = features.shape[1]
 
     sampler = Sampler_ASGCN(None, train_features, adj_train,
-                            input_dim=input_dim, layer_sizes=layer_sizes, scope="None")
+                            input_dim=input_dim,
+                            layer_sizes=layer_sizes, scope="None")
 
     batch_inds = list(range(batchsize))
     sampled_feats, sampled_adjs, var_loss = sampler.sampling(batch_inds)
