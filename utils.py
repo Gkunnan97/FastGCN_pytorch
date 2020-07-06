@@ -60,8 +60,8 @@ def _load_data(dataset_str):
     idx_test = test_idx_range.tolist()
     idx_train = range(len(ally)-500)
     idx_val = range(len(ally)-500, len(ally))
-    #idx_train = range(len(y))
-    #idx_val = range(len(y), len(y)+500)
+    # idx_train = range(len(y))
+    # idx_val = range(len(y), len(y)+500)
 
     train_mask = sample_mask(idx_train, labels.shape[0])
     val_mask = sample_mask(idx_val, labels.shape[0])
@@ -74,7 +74,8 @@ def _load_data(dataset_str):
     y_val[val_mask, :] = labels[val_mask, :]
     y_test[test_mask, :] = labels[test_mask, :]
 
-    return adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask
+    return (adj, features, y_train, y_val, y_test,
+            train_mask, val_mask, test_mask)
 
 
 def nontuple_preprocess_features(features):
@@ -105,18 +106,9 @@ def nontuple_preprocess_adj(adj):
 
 
 def load_data(dataset):
-    """
-    Returns:
-        norm_adj: scipy.sparse.csr.csr_matrix, shape=(N, N)
-        adj_train, adj_val_train: adjedList like...  shape=(train_node + 1, max_degree)
-        features: numpy.matrix, shape=(N, Dim)
-        train_features: numpy.matrix, shape=(N_train + 1, Dim)
-        y_train, y_test: numpy.ndarray, shape=(N_train/N_test, Class_N)
-        test_index: numpy.ndarray, shape=(N_test,)
-    """
     # train_mask, val_mask, test_mask: np.ndarray, [True/False] * node_number
-    adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask = _load_data(
-        dataset)
+    adj, features, y_train, y_val, y_test, train_mask, val_mask, test_mask = \
+        _load_data(dataset)
     # pdb.set_trace()
     train_index = np.where(train_mask)[0]
     adj_train = adj[train_index, :][:, train_index]
@@ -147,13 +139,14 @@ def load_data(dataset):
     # y_test = torch.LongTensor(y_test)
     # test_index = torch.LongTensor(test_index)
 
-    return norm_adj, features, norm_adj_train, train_features, y_train, y_test, test_index
+    return (norm_adj, features, norm_adj_train, train_features,
+            y_train, y_test, test_index)
 
 
 def get_batches(train_ind, train_labels, batch_size=64, shuffle=True):
     """
     Inputs:
-        train_ind: np.array 
+        train_ind: np.array
     """
     nums = train_ind.shape[0]
     if shuffle:
@@ -184,6 +177,7 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
 
 
 if __name__ == '__main__':
-    adj, features, adj_train, train_features, y_train, y_test, test_index = load_data(
-        'cora')
+    pdb.set_trace()
+    adj, features, adj_train, train_features, y_train, y_test, test_index = \
+        load_data('cora')
     pdb.set_trace()

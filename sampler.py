@@ -67,7 +67,6 @@ class Sampler_FastGCN(Sampler):
         all_support.append(support)
         all_x_u[:-1] = [self.features for _ in range(self.num_layers - 1)]
 
-        all_x_u = self._change_dense_to_tensor(all_x_u)
         all_support = self._change_sparse_to_tensor(all_support)
 
         return all_x_u, all_support, 0
@@ -89,7 +88,6 @@ class Sampler_FastGCN(Sampler):
 
 class Sampler_ASGCN(Sampler, torch.nn.Module):
     def __init__(self, pre_probs, features, adj, **kwargs):
-        # features = torch.FloatTensor(features)
         # adj = sparse_mx_to_torch_sparse_tensor(adj)
         super().__init__(features, adj, **kwargs)
         torch.nn.Module.__init__(self)
@@ -133,7 +131,6 @@ class Sampler_ASGCN(Sampler, torch.nn.Module):
 
             cur_out_nodes = u_sampled
 
-        all_x_u = self._change_dense_to_tensor(all_x_u)
         # all_support = self._change_sparse_to_tensor(all_support)
 
         loss = self._calc_variance(all_p_u)
@@ -145,7 +142,7 @@ class Sampler_ASGCN(Sampler, torch.nn.Module):
         u_nodes, p_u = var_need[-1][0], var_need[-1][1]
         p_u = p_u.reshape(-1, 1)
         feature = torch.FloatTensor(self.features[u_nodes])
-        means = torch.sum(feature, axis=0)
+        means = torch.sum(feature, 0)
         feature = feature - means
         var = torch.mean(torch.sum(torch.mul(feature, feature) * p_u, 0))
         return var
@@ -154,17 +151,18 @@ class Sampler_ASGCN(Sampler, torch.nn.Module):
         support = self.adj[v_indices, :]
         neis = np.nonzero(np.sum(support, axis=0))[1]
         support = support[:, neis]
-        # change the sparse support to dense
+        # NOTE: change the sparse support to dense, mind the matrix size
         support = support.todense()
         support = torch.FloatTensor(support)
-        h_v = torch.FloatTensor(self.features[v_indices])
-        h_u = torch.FloatTensor(self.features[neis])
+        h_v = self.features[v_indices]
+        h_u = self.features[neis]
 
         attention = torch.mm(h_v, self.w1) + \
             torch.mm(h_u, self.w2).reshape(1, -1) + 1
         attention = (1.0 / np.size(neis)) * torch.relu(attention)
 
         p1 = torch.sum(support * attention, 0)
+        # NOTE: if use GPU, this part must be modified
         numpy_p1 = p1.data.numpy()
         sampled = np.random.choice(np.array(np.arange(np.size(neis))),
                                    size=output_size,
