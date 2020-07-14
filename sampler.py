@@ -12,7 +12,7 @@ from utils import sparse_mx_to_torch_sparse_tensor, load_data
 
 class Sampler:
     def __init__(self, features, adj, **kwargs):
-        allowed_kwargs = {'num_layers', 'input_dim', 'layer_sizes', 'scope'}
+        allowed_kwargs = {'num_layers', 'input_dim', 'layer_sizes', 'device'}
         for kwarg in kwargs.keys():
             assert kwarg in allowed_kwargs, \
                 'Invalid keyword argument: ' + kwarg
@@ -20,6 +20,7 @@ class Sampler:
         self.input_dim = kwargs.get('input_dim', 1)
         self.layer_sizes = kwargs.get('layer_sizes', [1])
         self.scope = kwargs.get('scope', 'test_graph')
+        self.device = kwargs.get('device', torch.device("cpu"))
 
         self.num_layers = len(self.layer_sizes)
 
@@ -34,13 +35,13 @@ class Sampler:
     def _change_sparse_to_tensor(self, adjs):
         new_adjs = []
         for adj in adjs:
-            new_adjs.append(sparse_mx_to_torch_sparse_tensor(adj))
+            new_adjs.append(sparse_mx_to_torch_sparse_tensor(adj).to(self.device))
         return new_adjs
 
     def _change_dense_to_tensor(self, features):
         new_feats = []
         for feats in features:
-            new_feats.append(torch.FloatTensor(feats))
+            new_feats.append(torch.FloatTensor(feats).to(self.device))
         return new_feats
 
 
@@ -141,7 +142,7 @@ class Sampler_ASGCN(Sampler, torch.nn.Module):
         # only calc the variane of the last layer
         u_nodes, p_u = var_need[-1][0], var_need[-1][1]
         p_u = p_u.reshape(-1, 1)
-        feature = torch.FloatTensor(self.features[u_nodes])
+        feature = self.features[u_nodes]
         means = torch.sum(feature, 0)
         feature = feature - means
         var = torch.mean(torch.sum(torch.mul(feature, feature) * p_u, 0))
@@ -153,7 +154,7 @@ class Sampler_ASGCN(Sampler, torch.nn.Module):
         support = support[:, neis]
         # NOTE: change the sparse support to dense, mind the matrix size
         support = support.todense()
-        support = torch.FloatTensor(support)
+        support = torch.FloatTensor(support).to(self.device)
         h_v = self.features[v_indices]
         h_u = self.features[neis]
 
@@ -163,7 +164,8 @@ class Sampler_ASGCN(Sampler, torch.nn.Module):
 
         p1 = torch.sum(support * attention, 0)
         # NOTE: if use GPU, this part must be modified
-        numpy_p1 = p1.data.numpy()
+        numpy_p1 = p1.to('cpu').data.numpy()
+        # numpy_p1 = p1
         sampled = np.random.choice(np.array(np.arange(np.size(neis))),
                                    size=output_size,
                                    replace=True,

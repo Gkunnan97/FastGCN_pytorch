@@ -22,7 +22,7 @@ def get_args():
                         help='model name.')
     parser.add_argument('--test_gap', type=int, default=10,
                         help='the train epochs between two test')
-    parser.add_argument('--no-cuda', action='store_true', default=False,
+    parser.add_argument('--no-cuda', action='store_true', default=True,
                         help='Disables CUDA training.')
     parser.add_argument('--fastmode', action='store_true', default=False,
                         help='Validate during training pass.')
@@ -90,12 +90,16 @@ if __name__ == '__main__':
     if args.cuda:
         torch.cuda.manual_seed(args.seed)
     # set device
-    device = torch.device("cuda") if args.cuda else torch.device("cpu")
+    if args.cuda:
+        device = torch.device("cuda")
+        print("use cuda")
+    else:
+        device = torch.device("cpu")
 
     # data for train and test
-    features = torch.FloatTensor(features, device=device)
-    train_features = torch.FloatTensor(train_features, device=device)
-    y_train = torch.LongTensor(y_train, device=device).max(1)[1]
+    features = torch.FloatTensor(features).to(device)
+    train_features = torch.FloatTensor(train_features).to(device)
+    y_train = torch.LongTensor(y_train).to(device).max(1)[1]
 
     test_adj = [adj, adj[test_index, :]]
     test_feats = [features, features[test_index]]
@@ -104,19 +108,19 @@ if __name__ == '__main__':
                 for cur_adj in test_adj]
     # test_feats = [torch.FloatTensor(cur_feats, device=device)
     #               for cur_feats in test_feats]
-    test_labels = torch.LongTensor(test_labels, device=device).max(1)[1]
+    test_labels = torch.LongTensor(test_labels).to(device).max(1)[1]
 
     # init the sampler
     if args.model == 'Fast':
         sampler = Sampler_FastGCN(None, train_features, adj_train,
                                   input_dim=input_dim,
                                   layer_sizes=layer_sizes,
-                                  scope="None")
+                                  device=device)
     elif args.model == 'AS':
         sampler = Sampler_ASGCN(None, train_features, adj_train,
                                 input_dim=input_dim,
                                 layer_sizes=layer_sizes,
-                                scope="None").to(device)
+                                device=device)
     else:
         print(f"model name error, no model named {args.model}")
         exit()
@@ -146,7 +150,7 @@ if __name__ == '__main__':
         print(f"epchs:{epochs * test_gap}~{(epochs + 1) * test_gap - 1} "
               f"train_loss: {train_loss:.3f}, "
               f"train_acc: {train_acc:.3f}, "
-              f"train_times: {train_time:.3f} "
+              f"train_times: {train_time:.3f}s "
               f"test_loss: {test_loss:.3f}, "
               f"test_acc: {test_acc:.3f}, "
-              f"test_times: {test_time:.3f}")
+              f"test_times: {test_time:.3f}s")
