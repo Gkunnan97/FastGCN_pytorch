@@ -14,7 +14,7 @@ class GCN(nn.Module):
         self.out_softmax = nn.Softmax(dim=1)
 
     def forward(self, x, adj):
-        outputs1 = F.relu(self.gc1(x[0], adj[0]))
+        outputs1 = F.relu(self.gc1(x, adj[0]))
         outputs1 = F.dropout(outputs1, self.dropout, training=self.training)
         outputs2 = self.gc2(outputs1, adj[1])
         return F.log_softmax(outputs2, dim=1)

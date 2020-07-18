@@ -27,7 +27,7 @@ def get_args():
     parser.add_argument('--fastmode', action='store_true', default=False,
                         help='Validate during training pass.')
     parser.add_argument('--seed', type=int, default=123, help='Random seed.')
-    parser.add_argument('--epochs', type=int, default=200,
+    parser.add_argument('--epochs', type=int, default=100,
                         help='Number of epochs to train.')
     parser.add_argument('--lr', type=float, default=0.01,
                         help='Initial learning rate.')
@@ -38,7 +38,7 @@ def get_args():
     parser.add_argument('--dropout', type=float, default=0.0,
                         help='Dropout rate (1 - keep probability).')
     parser.add_argument('--batchsize', type=int, default=256,
-                        help='Dropout rate (1 - keep probability).')
+                        help='batchsize for train')
     args = parser.parse_args()
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     return args
@@ -59,7 +59,7 @@ def train(train_ind, train_labels, batch_size, train_times):
             acc_train = accuracy(output, batch_labels)
             loss_train.backward()
             optimizer.step()
-
+    # just return the train loss of the last train epoch
     return loss_train.item(), acc_train.item(), time.time() - t
 
 
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     adj, features, adj_train, train_features, y_train, y_test, test_index = \
         load_data(args.dataset)
 
-    layer_sizes = [128, 128, args.batchsize]
+    layer_sizes = [128, 128]
     input_dim = features.shape[1]
     train_nums = adj_train.shape[0]
     test_gap = args.test_gap
@@ -102,12 +102,10 @@ if __name__ == '__main__':
     y_train = torch.LongTensor(y_train).to(device).max(1)[1]
 
     test_adj = [adj, adj[test_index, :]]
-    test_feats = [features, features[test_index]]
+    test_feats = features
     test_labels = y_test
     test_adj = [sparse_mx_to_torch_sparse_tensor(cur_adj).to(device)
                 for cur_adj in test_adj]
-    # test_feats = [torch.FloatTensor(cur_feats, device=device)
-    #               for cur_feats in test_feats]
     test_labels = torch.LongTensor(test_labels).to(device).max(1)[1]
 
     # init the sampler
@@ -142,7 +140,6 @@ if __name__ == '__main__':
                                                   y_train,
                                                   args.batchsize,
                                                   test_gap)
-
         test_loss, test_acc, test_time = test(test_adj,
                                               test_feats,
                                               test_labels,
